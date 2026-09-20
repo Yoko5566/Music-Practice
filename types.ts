@@ -6,4 +6,4 @@ export interface KeyboardNote {
 }
 
 export type GameMode = 'free' | 'challenge';
-export type ChallengeType = 'level1' | 'random';
+export type ChallengeType = 'level1' | 'ode' | 'bach' | 'recording';
