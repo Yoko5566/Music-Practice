@@ -35,7 +35,7 @@ The keyboard now spans **15 white-key notes from C4 through C6**.
 
 ### Free Play
 
-Play all 15 white-key notes using the computer keyboard or the on-screen keys.
+Play all 15 white-key notes using the computer keyboard or the on-screen keys. Hold multiple keys at the same time to play polyphonic chords; each note sustains until its key is released.
 
 ### Challenge
 
