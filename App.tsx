@@ -67,11 +67,6 @@ export default function App() {
   const currentTarget = sequence[currentIndex] ?? null;
   const accuracy = attempts === 0 ? 100 : Math.round((correctHits / attempts) * 100);
 
-  const nextPreview = useMemo(
-    () => sequence.slice(currentIndex, currentIndex + 8),
-    [sequence, currentIndex],
-  );
-
   const recordedDurationMs = useMemo(() => {
     if (recordedNotes.length === 0) return 0;
     return Math.max(
@@ -382,15 +377,6 @@ export default function App() {
     [clearLoopTimers],
   );
 
-  const challengeLabel =
-    challengeType === 'ode'
-      ? 'Beethoven · Ode to Joy'
-      : challengeType === 'bach'
-        ? 'Bach · BWV 846'
-        : challengeType === 'recording'
-          ? 'My Loop Challenge'
-          : 'Level 1';
-
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 text-white">
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.22),_transparent_52%)]" />
@@ -412,7 +398,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6">
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-3 md:px-6 md:py-4">
         <section className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
           <div className="flex rounded-xl border border-white/10 bg-slate-900/80 p-1">
             <button
@@ -468,13 +454,9 @@ export default function App() {
           </div>
         </section>
 
-        <section className="mx-auto mt-4 flex min-h-0 w-full max-w-5xl flex-1 flex-col justify-center">
+        <section className="mx-auto mt-3 flex min-h-0 w-full max-w-5xl flex-1 flex-col justify-start">
           {mode === 'challenge' && (
-            <>
-              <div className="mb-2 text-center text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
-                {challengeLabel}
-              </div>
-              <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
                 <button
                   type="button"
                   onClick={() => selectChallenge('level1')}
@@ -521,33 +503,24 @@ export default function App() {
                     My Loop · {customChallenge.length}
                   </button>
                 )}
-              </div>
-            </>
+            </div>
           )}
 
           {mode === 'free' ? (
-            <>
-              <div className="mb-3 text-center">
-                <div className="text-4xl font-black md:text-6xl">Free Play</div>
-                <p className="mt-2 text-sm text-slate-400">
-                  Three octaves · hold multiple keys together to play chords.
-                </p>
-              </div>
-
-              <div className="mb-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <div className="text-sm font-black text-white">Loop Recorder</div>
-                    <div className="text-xs text-slate-500">
-                      {isRecording
-                        ? 'Recording note timing…'
-                        : recordedNotes.length > 0
-                          ? `${recordedNotes.length} notes · ${(recordedDurationMs / 1000).toFixed(1)}s loop`
-                          : 'Record a phrase, loop it, then turn it into a Challenge.'}
-                    </div>
+            <div className="mb-3 rounded-2xl border border-white/10 bg-slate-900/70 p-2.5 md:p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <div className="text-sm font-black text-white">Loop Recorder</div>
+                  <div className="truncate text-[11px] text-slate-500 md:text-xs">
+                    {isRecording
+                      ? 'Recording…'
+                      : recordedNotes.length > 0
+                        ? `${recordedNotes.length} notes · ${(recordedDurationMs / 1000).toFixed(1)}s`
+                        : 'Record · Loop · Make Challenge'}
                   </div>
+                </div>
 
-                  <div className="flex flex-wrap justify-end gap-2">
+                <div className="flex shrink-0 items-center gap-1.5 md:gap-2">
                     {!isRecording ? (
                       <button
                         type="button"
@@ -585,7 +558,7 @@ export default function App() {
                       className="inline-flex items-center gap-1.5 rounded-lg border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-xs font-bold text-violet-300 transition enabled:hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-35"
                     >
                       <ListMusic size={14} />
-                      Make Challenge
+                      <span className="hidden sm:inline">Make Challenge</span>
                     </button>
 
                     <button
@@ -597,10 +570,9 @@ export default function App() {
                     >
                       <Trash2 size={14} />
                     </button>
-                  </div>
                 </div>
               </div>
-            </>
+            </div>
           ) : isComplete ? (
             <div className="mb-5 text-center">
               <div className="text-4xl font-black text-emerald-300 md:text-6xl">Challenge Clear</div>
@@ -618,35 +590,20 @@ export default function App() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+              <div className="grid grid-cols-3 gap-2 md:gap-3">
+                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3 md:p-4">
                   <div className="text-xs uppercase tracking-widest text-slate-500">Target</div>
                   <div className="mt-1 text-4xl font-black text-blue-300">{currentTarget?.key}</div>
                   <div className="text-sm text-slate-400">{currentTarget?.notation}</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3 md:p-4">
                   <div className="text-xs uppercase tracking-widest text-slate-500">Combo</div>
                   <div className="mt-1 font-mono text-3xl font-black">{combo}</div>
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-3 md:p-4">
                   <div className="text-xs uppercase tracking-widest text-slate-500">Accuracy</div>
                   <div className="mt-1 font-mono text-3xl font-black">{accuracy}%</div>
                 </div>
-              </div>
-
-              <div className="mt-4 flex min-h-16 items-center justify-center gap-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 px-3">
-                {nextPreview.map((note, index) => (
-                  <div
-                    key={`${currentIndex}-${index}-${note.key}`}
-                    className={`flex h-12 min-w-12 items-center justify-center rounded-xl border font-mono text-lg font-black transition ${
-                      index === 0
-                        ? 'border-blue-300 bg-blue-500 text-white'
-                        : 'border-slate-700 bg-slate-800 text-slate-400'
-                    }`}
-                  >
-                    {note.key}
-                  </div>
-                ))}
               </div>
 
               <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
@@ -658,7 +615,7 @@ export default function App() {
             </>
           )}
 
-          <div className="mt-4 space-y-2" aria-label="Virtual music keyboard">
+          <div className="mt-3 space-y-2" aria-label="Virtual music keyboard">
             {[
               { label: 'High · C5–C6', notes: highRowNotes },
               { label: 'Mid · C4–C5', notes: midRowNotes },
