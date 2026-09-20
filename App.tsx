@@ -548,7 +548,7 @@ export default function App() {
                       className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200 transition enabled:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-35"
                     >
                       <Repeat2 size={14} />
-                      {isLooping ? 'Stop Loop' : 'Loop'}
+                      <span className="hidden sm:inline">{isLooping ? 'Stop Loop' : 'Loop'}</span>
                     </button>
 
                     <button
@@ -680,23 +680,18 @@ export default function App() {
             ))}
           </div>
 
-          <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
-            <span>
-              {mode === 'free'
-                ? 'Loop Challenge uses the order of recorded note attacks.'
-                : 'Keys: Q–I high · A–K mid · Z–, low.'}
-            </span>
-            {mode === 'challenge' && (
+          {mode === 'challenge' && (
+            <div className="mt-3 flex items-center justify-end">
               <button
                 type="button"
                 onClick={() => resetChallenge()}
-                className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/80 px-3 py-2 font-semibold text-slate-300 hover:text-white"
+                className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/80 px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white"
               >
                 <RotateCcw size={14} />
                 Restart
               </button>
-            )}
-          </div>
+            </div>
+          )}
         </section>
       </main>
     </div>
