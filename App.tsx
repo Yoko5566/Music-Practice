@@ -161,8 +161,22 @@ export default function App() {
   }, [stepBack, toggleAutoPlay, triggerManualNote]);
 
   useEffect(() => {
+    const container = scrollRef.current;
     const activeElement = document.getElementById(`lyric-line-${activeLineId}`);
-    activeElement?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    if (!container || !activeElement) return;
+
+    const containerRect = container.getBoundingClientRect();
+    const activeRect = activeElement.getBoundingClientRect();
+    const targetScrollTop =
+      container.scrollTop +
+      (activeRect.top - containerRect.top) -
+      (container.clientHeight - activeElement.clientHeight) / 2;
+
+    container.scrollTo({
+      top: Math.max(0, targetScrollTop),
+      behavior: 'smooth',
+    });
   }, [activeLineId]);
 
   const handlePointerDown = (event: React.PointerEvent) => {
@@ -172,7 +186,7 @@ export default function App() {
 
   return (
     <div
-      className="relative flex h-full w-full touch-none select-none flex-col overflow-hidden bg-slate-950"
+      className="relative flex h-[100dvh] max-h-[100dvh] w-full touch-none select-none flex-col overflow-hidden bg-slate-950"
       onPointerDown={handlePointerDown}
     >
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(88,28,135,0.35),_transparent_55%)]" />
