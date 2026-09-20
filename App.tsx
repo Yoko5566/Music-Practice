@@ -24,7 +24,6 @@ export default function App() {
   const [challengeType, setChallengeType] = useState<ChallengeType>('level1');
   const [sequence, setSequence] = useState<KeyboardNote[]>(() => createLevelOneChallenge());
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
   const [attempts, setAttempts] = useState(0);
   const [correctHits, setCorrectHits] = useState(0);
@@ -76,11 +75,9 @@ export default function App() {
         const nextCombo = combo + 1;
         setCombo(nextCombo);
         setCorrectHits((value) => value + 1);
-        setScore((value) => value + 100 + Math.min(nextCombo * 10, 200));
         setCurrentIndex((value) => value + 1);
       } else {
         setCombo(0);
-        setScore((value) => Math.max(0, value - 25));
       }
     },
     [combo, currentTarget, isComplete, mode],
@@ -100,7 +97,6 @@ export default function App() {
     (type: ChallengeType = challengeType) => {
       setSequence(type === 'level1' ? createLevelOneChallenge() : createChallenge(CHALLENGE_LENGTH));
       setCurrentIndex(0);
-      setScore(0);
       setCombo(0);
       setAttempts(0);
       setCorrectHits(0);
@@ -277,8 +273,6 @@ export default function App() {
             <div className="mb-5 text-center">
               <div className="text-4xl font-black text-emerald-300 md:text-6xl">Challenge Clear</div>
               <p className="mt-3 text-slate-300">
-                Score <span className="font-mono font-bold text-white">{score}</span>
-                {' · '}
                 Accuracy <span className="font-mono font-bold text-white">{accuracy}%</span>
               </p>
               <button
@@ -292,21 +286,17 @@ export default function App() {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-3 gap-3 md:grid-cols-4">
+              <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
                   <div className="text-xs uppercase tracking-widest text-slate-500">Target</div>
                   <div className="mt-1 text-4xl font-black text-blue-300">{currentTarget?.key}</div>
                   <div className="text-sm text-slate-400">{currentTarget?.notation}</div>
                 </div>
                 <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
-                  <div className="text-xs uppercase tracking-widest text-slate-500">Score</div>
-                  <div className="mt-1 font-mono text-3xl font-black">{score}</div>
-                </div>
-                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
                   <div className="text-xs uppercase tracking-widest text-slate-500">Combo</div>
                   <div className="mt-1 font-mono text-3xl font-black">{combo}</div>
                 </div>
-                <div className="hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 md:block">
+                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
                   <div className="text-xs uppercase tracking-widest text-slate-500">Accuracy</div>
                   <div className="mt-1 font-mono text-3xl font-black">{accuracy}%</div>
                 </div>
