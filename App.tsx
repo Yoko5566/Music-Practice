@@ -15,7 +15,7 @@ const highRowNotes = HIGH_ROW_KEYS.map((key) => keyMap.get(key)).filter(
 export default function App() {
   const [mode, setMode] = useState<GameMode>('free');
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [activeKeys, setActiveKeys] = useState<Set<string>>(() => new Set());
   const [challengeType, setChallengeType] = useState<ChallengeType>('level1');
   const [sequence, setSequence] = useState<KeyboardNote[]>(() => createLevelOneChallenge());
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -38,18 +38,16 @@ export default function App() {
     return () => audioService.stopAll();
   }, [volume]);
 
-  const flashKey = useCallback((key: string) => {
-    setActiveKey(key);
-    window.setTimeout(() => {
-      setActiveKey((current) => (current === key ? null : current));
-    }, 140);
-  }, []);
-
-  const playNote = useCallback(
+  const pressNote = useCallback(
     (note: KeyboardNote) => {
       void audioService.resume();
-      audioService.playTone(note.frequency, 0.42);
-      flashKey(note.key);
+      audioService.startTone(note.key, note.frequency);
+      setActiveKeys((current) => {
+        if (current.has(note.key)) return current;
+        const next = new Set(current);
+        next.add(note.key);
+        return next;
+      });
 
       if (mode !== 'challenge' || isComplete || !currentTarget) return;
 
@@ -66,8 +64,18 @@ export default function App() {
         setScore((value) => Math.max(0, value - 25));
       }
     },
-    [combo, currentTarget, flashKey, isComplete, mode],
+    [combo, currentTarget, isComplete, mode],
   );
+
+  const releaseNote = useCallback((key: string) => {
+    audioService.stopTone(key);
+    setActiveKeys((current) => {
+      if (!current.has(key)) return current;
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+  }, []);
 
   const resetChallenge = useCallback(
     (type: ChallengeType = challengeType) => {
@@ -92,7 +100,8 @@ export default function App() {
   const switchMode = useCallback(
     (nextMode: GameMode) => {
       setMode(nextMode);
-      setActiveKey(null);
+      audioService.stopAll();
+      setActiveKeys(new Set());
       if (nextMode === 'challenge') resetChallenge();
     },
     [resetChallenge],
@@ -108,12 +117,32 @@ export default function App() {
       if (!note || event.repeat) return;
 
       event.preventDefault();
-      playNote(note);
+      pressNote(note);
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      const key = event.key.toUpperCase();
+      if (!keyMap.has(key)) return;
+
+      event.preventDefault();
+      releaseNote(key);
+    };
+
+    const releaseAll = () => {
+      audioService.stopAll();
+      setActiveKeys(new Set());
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [playNote]);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', releaseAll);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', releaseAll);
+    };
+  }, [pressNote, releaseNote]);
 
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 text-white">
@@ -206,7 +235,7 @@ export default function App() {
           {mode === 'free' ? (
             <div className="mb-5 text-center">
               <div className="text-4xl font-black md:text-6xl">Free Play</div>
-              <p className="mt-2 text-sm text-slate-400">Lower row Z–M · Upper row A–K · or tap the keys below.</p>
+              <p className="mt-2 text-sm text-slate-400">Hold multiple keys together to play chords · Z–M lower · A–K upper.</p>
             </div>
           ) : isComplete ? (
             <div className="mb-5 text-center">
@@ -286,7 +315,7 @@ export default function App() {
                   }`}
                 >
                   {row.notes.map((note) => {
-                    const isActive = activeKey === note.key;
+                    const isActive = activeKeys.has(note.key);
                     const isTarget =
                       mode === 'challenge' && !isComplete && currentTarget?.key === note.key;
 
@@ -296,8 +325,15 @@ export default function App() {
                         type="button"
                         onPointerDown={(event) => {
                           event.preventDefault();
-                          playNote(note);
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                          pressNote(note);
                         }}
+                        onPointerUp={(event) => {
+                          event.preventDefault();
+                          releaseNote(note.key);
+                        }}
+                        onPointerCancel={() => releaseNote(note.key)}
+                        onLostPointerCapture={() => releaseNote(note.key)}
                         className={`group flex min-h-24 flex-col items-center justify-between rounded-2xl border px-2 py-3 transition active:scale-[0.98] md:min-h-32 ${
                           isActive
                             ? 'border-blue-200 bg-blue-400 text-slate-950'
@@ -333,7 +369,7 @@ export default function App() {
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
-            <span>Tip: Z–M plays the lower octave; A–K plays the upper octave.</span>
+            <span>Tip: Hold several keys at once for polyphonic chords.</span>
             {mode === 'challenge' && (
               <button
                 type="button"
