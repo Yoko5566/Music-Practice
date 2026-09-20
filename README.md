@@ -4,45 +4,63 @@ A lightweight browser music game built with React, TypeScript, Vite, and the Web
 
 ## Play
 
-The keyboard now spans **15 white-key notes from C4 through C6**.
+The keyboard now provides three playable white-key octaves from **C3 through C6**.
 
-### Lower octave
-
-| Key | Note |
-| --- | --- |
-| Z | C4 / Do |
-| X | D4 / Re |
-| C | E4 / Mi |
-| V | F4 / Fa |
-| B | G4 / Sol |
-| N | A4 / La |
-| M | B4 / Ti |
-
-### Upper octave
+### High octave
 
 | Key | Note |
 | --- | --- |
-| A | C5 / Do |
-| S | D5 / Re |
-| D | E5 / Mi |
-| F | F5 / Fa |
-| G | G5 / Sol |
-| H | A5 / La |
-| J | B5 / Ti |
-| K | C6 / Do |
+| Q | C5 / Do |
+| W | D5 / Re |
+| E | E5 / Mi |
+| R | F5 / Fa |
+| T | G5 / Sol |
+| Y | A5 / La |
+| U | B5 / Ti |
+| I | C6 / Do |
+
+### Middle octave
+
+| Key | Note |
+| --- | --- |
+| A | C4 / Do |
+| S | D4 / Re |
+| D | E4 / Mi |
+| F | F4 / Fa |
+| G | G4 / Sol |
+| H | A4 / La |
+| J | B4 / Ti |
+| K | C5 / Do |
+
+### Low octave
+
+| Key | Note |
+| --- | --- |
+| Z | C3 / Do |
+| X | D3 / Re |
+| C | E3 / Mi |
+| V | F3 / Fa |
+| B | G3 / Sol |
+| N | A3 / La |
+| M | B3 / Ti |
+| , | C4 / Do |
 
 ## Game modes
 
 ### Free Play
 
-Play all 15 white-key notes using the computer keyboard or the on-screen keys. Hold multiple keys at the same time to play polyphonic chords; each note sustains until its key is released.
+Play all three octaves from the computer keyboard or the on-screen keys. Hold multiple keys at the same time to play polyphonic chords; each note sustains until its key is released.
 
 ### Challenge
 
-- **Level 1** keeps the existing fixed 42-key sequence and uses the upper-octave A–K mapping.
-- **Random** generates a 16-note challenge from the full C4–C6 white-key range.
+- **Level 1** keeps the existing fixed A–K sequence on the middle octave.
+- **Random** generates a 16-key challenge from the full three-octave keyboard.
 
 Correct notes advance the pattern, build combo, increase score, and improve accuracy. Wrong notes reset the combo and reduce the score slightly.
+
+## Volume
+
+The main interface uses a compact speaker button. Tap or click the speaker icon to open the volume slider, adjust the master volume, then tap elsewhere to close it.
 
 ## Tech stack
 
@@ -66,37 +84,10 @@ npm run dev
 
 Vite is configured to run locally on port `3000`.
 
-## Project structure
-
-```text
-Music-Practice/
-├── App.tsx
-├── constants.ts
-├── types.ts
-├── services/
-│   └── audioService.ts
-├── index.tsx
-├── index.html
-├── metadata.json
-├── vite.config.ts
-├── tsconfig.json
-└── package.json
-```
-
 ## Deployment
 
-The project includes a GitHub Pages workflow at `.github/workflows/deploy-pages.yml`.
-
-Every push to `main` automatically:
-
-1. installs dependencies
-2. runs TypeScript type checking
-3. builds the Vite production bundle
-4. uploads the `dist` artifact
-5. deploys it to GitHub Pages
+Every push to `main` is automatically checked, built, and deployed through GitHub Pages.
 
 Public URL:
 
 `https://yoko5566.github.io/Music-Practice/`
-
-The Vite configuration keeps local development at `/` while using `/Music-Practice/` as the production base path.
