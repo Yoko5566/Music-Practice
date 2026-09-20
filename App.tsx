@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Gamepad2, RotateCcw, Volume2 } from 'lucide-react';
-import { CHALLENGE_LENGTH, createChallenge, DEFAULT_VOLUME, KEYBOARD_NOTES } from './constants';
+import { CHALLENGE_LENGTH, createChallenge, createLevelOneChallenge, DEFAULT_VOLUME, KEYBOARD_NOTES } from './constants';
 import { audioService } from './services/audioService';
-import { GameMode, KeyboardNote } from './types';
+import { ChallengeType, GameMode, KeyboardNote } from './types';
 
 const keyMap = new Map(KEYBOARD_NOTES.map((note) => [note.key, note]));
 
@@ -10,7 +10,8 @@ export default function App() {
   const [mode, setMode] = useState<GameMode>('free');
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
   const [activeKey, setActiveKey] = useState<string | null>(null);
-  const [sequence, setSequence] = useState<KeyboardNote[]>(() => createChallenge());
+  const [challengeType, setChallengeType] = useState<ChallengeType>('level1');
+  const [sequence, setSequence] = useState<KeyboardNote[]>(() => createLevelOneChallenge());
   const [currentIndex, setCurrentIndex] = useState(0);
   const [score, setScore] = useState(0);
   const [combo, setCombo] = useState(0);
@@ -62,14 +63,25 @@ export default function App() {
     [combo, currentTarget, flashKey, isComplete, mode],
   );
 
-  const resetChallenge = useCallback(() => {
-    setSequence(createChallenge(CHALLENGE_LENGTH));
-    setCurrentIndex(0);
-    setScore(0);
-    setCombo(0);
-    setAttempts(0);
-    setCorrectHits(0);
-  }, []);
+  const resetChallenge = useCallback(
+    (type: ChallengeType = challengeType) => {
+      setSequence(type === 'level1' ? createLevelOneChallenge() : createChallenge(CHALLENGE_LENGTH));
+      setCurrentIndex(0);
+      setScore(0);
+      setCombo(0);
+      setAttempts(0);
+      setCorrectHits(0);
+    },
+    [challengeType],
+  );
+
+  const selectChallenge = useCallback(
+    (type: ChallengeType) => {
+      setChallengeType(type);
+      resetChallenge(type);
+    },
+    [resetChallenge],
+  );
 
   const switchMode = useCallback(
     (nextMode: GameMode) => {
@@ -158,6 +170,33 @@ export default function App() {
         </section>
 
         <section className="mx-auto mt-4 flex min-h-0 w-full max-w-5xl flex-1 flex-col justify-center">
+          {mode === 'challenge' && (
+            <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={() => selectChallenge('level1')}
+                className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
+                  challengeType === 'level1'
+                    ? 'border-blue-300 bg-blue-500 text-white'
+                    : 'border-white/10 bg-slate-900/80 text-slate-400 hover:text-white'
+                }`}
+              >
+                Level 1 · 42 Keys
+              </button>
+              <button
+                type="button"
+                onClick={() => selectChallenge('random')}
+                className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
+                  challengeType === 'random'
+                    ? 'border-blue-300 bg-blue-500 text-white'
+                    : 'border-white/10 bg-slate-900/80 text-slate-400 hover:text-white'
+                }`}
+              >
+                Random · 16 Keys
+              </button>
+            </div>
+          )}
+
           {mode === 'free' ? (
             <div className="mb-5 text-center">
               <div className="text-4xl font-black md:text-6xl">Free Play</div>
@@ -173,11 +212,11 @@ export default function App() {
               </p>
               <button
                 type="button"
-                onClick={resetChallenge}
+                onClick={() => resetChallenge()}
                 className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 font-bold text-white transition active:scale-95"
               >
                 <RotateCcw size={18} />
-                Play Again
+                {challengeType === 'level1' ? 'Retry Level 1' : 'Play Again'}
               </button>
             </div>
           ) : (
@@ -271,11 +310,11 @@ export default function App() {
             {mode === 'challenge' && (
               <button
                 type="button"
-                onClick={resetChallenge}
+                onClick={() => resetChallenge()}
                 className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/80 px-3 py-2 font-semibold text-slate-300 hover:text-white"
               >
                 <RotateCcw size={14} />
-                New Pattern
+                {challengeType === 'level1' ? 'Restart Level' : 'New Pattern'}
               </button>
             )}
           </div>
