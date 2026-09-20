@@ -76,3 +76,22 @@ Music-Practice/
 ## Public-release note
 
 This version uses generated note challenges and synthesized Web Audio tones. It does not include the previous third-party song lyrics or song-specific note sequence, making it substantially cleaner for a public demo or portfolio project.
+
+
+## Deployment
+
+The project includes a GitHub Pages workflow at `.github/workflows/deploy-pages.yml`.
+
+Every push to `main` automatically:
+
+1. installs dependencies
+2. runs TypeScript type checking
+3. builds the Vite production bundle
+4. uploads the `dist` artifact
+5. deploys it to GitHub Pages
+
+Expected public URL after GitHub Pages is enabled:
+
+`https://yoko5566.github.io/Music-Practice/`
+
+The Vite configuration keeps local development at `/` while using `/Music-Practice/` as the production base path.
