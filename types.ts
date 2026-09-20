@@ -1,12 +1,8 @@
-export interface NoteData {
-  lyric: string;
-  notation: string; // The numbered notation (e.g., "5", "1'")
-  pitch: number;    // Frequency in Hz
-  isHigh: boolean;  // If it's a high octave note
-  beats: number;   // Rhythmic length used by autoplay
+export interface KeyboardNote {
+  key: string;
+  label: string;
+  notation: string;
+  frequency: number;
 }
 
-export interface LyricLine {
-  id: number;
-  notes: NoteData[];
-}
+export type GameMode = 'free' | 'challenge';
