@@ -1,6 +1,6 @@
 {
-  "name": "Tap-to-Play Lyrics v2",
-  "description": "",
+  "name": "Keyboard Music Game",
+  "description": "A browser-based QWERTY music keyboard and note challenge game.",
   "requestFramePermissions": [],
-  "majorCapabilities": []
+  "majorCapabilities": ["Web Audio API", "Keyboard input", "Interactive game"]
 }
