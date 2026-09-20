@@ -212,7 +212,7 @@ export default function App() {
               </p>
               <button
                 type="button"
-                onClick={resetChallenge}
+                onClick={() => resetChallenge()}
                 className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 font-bold text-white transition active:scale-95"
               >
                 <RotateCcw size={18} />
@@ -310,7 +310,7 @@ export default function App() {
             {mode === 'challenge' && (
               <button
                 type="button"
-                onClick={resetChallenge}
+                onClick={() => resetChallenge()}
                 className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/80 px-3 py-2 font-semibold text-slate-300 hover:text-white"
               >
                 <RotateCcw size={14} />
