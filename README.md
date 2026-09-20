@@ -4,35 +4,45 @@ A lightweight browser music game built with React, TypeScript, Vite, and the Web
 
 ## Play
 
-Use the computer keyboard or the on-screen keys:
+The keyboard now spans **15 white-key notes from C4 through C6**.
+
+### Lower octave
 
 | Key | Note |
 | --- | --- |
-| A | C4 / Do |
-| S | D4 / Re |
-| D | E4 / Mi |
-| F | F4 / Fa |
-| G | G4 / Sol |
-| H | A4 / La |
-| J | B4 / Ti |
-| K | C5 / Do |
+| Z | C4 / Do |
+| X | D4 / Re |
+| C | E4 / Mi |
+| V | F4 / Fa |
+| B | G4 / Sol |
+| N | A4 / La |
+| M | B4 / Ti |
+
+### Upper octave
+
+| Key | Note |
+| --- | --- |
+| A | C5 / Do |
+| S | D5 / Re |
+| D | E5 / Mi |
+| F | F5 / Fa |
+| G | G5 / Sol |
+| H | A5 / La |
+| J | B5 / Ti |
+| K | C6 / Do |
 
 ## Game modes
 
 ### Free Play
 
-Play the eight-note keyboard freely using A–K or by tapping the virtual keys.
+Play all 15 white-key notes using the computer keyboard or the on-screen keys. Hold multiple keys at the same time to play polyphonic chords; each note sustains until its key is released.
 
 ### Challenge
 
-The game generates a random 16-note pattern. Match the displayed target keys to:
+- **Level 1** keeps the existing fixed 42-key sequence and uses the upper-octave A–K mapping.
+- **Random** generates a 16-note challenge from the full C4–C6 white-key range.
 
-- advance through the pattern
-- build a combo
-- increase your score
-- track accuracy
-
-Wrong notes reset the combo and reduce the score slightly.
+Correct notes advance the pattern, build combo, increase score, and improve accuracy. Wrong notes reset the combo and reduce the score slightly.
 
 ## Tech stack
 
@@ -73,11 +83,6 @@ Music-Practice/
 └── package.json
 ```
 
-## Public-release note
-
-This version uses generated note challenges and synthesized Web Audio tones. It does not include the previous third-party song lyrics or song-specific note sequence, making it substantially cleaner for a public demo or portfolio project.
-
-
 ## Deployment
 
 The project includes a GitHub Pages workflow at `.github/workflows/deploy-pages.yml`.
@@ -90,7 +95,7 @@ Every push to `main` automatically:
 4. uploads the `dist` artifact
 5. deploys it to GitHub Pages
 
-Expected public URL after GitHub Pages is enabled:
+Public URL:
 
 `https://yoko5566.github.io/Music-Practice/`
 

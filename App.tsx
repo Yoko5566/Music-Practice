@@ -1,15 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Gamepad2, RotateCcw, Volume2 } from 'lucide-react';
-import { CHALLENGE_LENGTH, createChallenge, createLevelOneChallenge, DEFAULT_VOLUME, KEYBOARD_NOTES } from './constants';
+import { CHALLENGE_LENGTH, createChallenge, createLevelOneChallenge, DEFAULT_VOLUME, HIGH_ROW_KEYS, KEYBOARD_NOTES, LOW_ROW_KEYS } from './constants';
 import { audioService } from './services/audioService';
 import { ChallengeType, GameMode, KeyboardNote } from './types';
 
 const keyMap = new Map(KEYBOARD_NOTES.map((note) => [note.key, note]));
+const lowRowNotes = LOW_ROW_KEYS.map((key) => keyMap.get(key)).filter(
+  (note): note is KeyboardNote => Boolean(note),
+);
+const highRowNotes = HIGH_ROW_KEYS.map((key) => keyMap.get(key)).filter(
+  (note): note is KeyboardNote => Boolean(note),
+);
 
 export default function App() {
   const [mode, setMode] = useState<GameMode>('free');
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
-  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [activeKeys, setActiveKeys] = useState<Set<string>>(() => new Set());
   const [challengeType, setChallengeType] = useState<ChallengeType>('level1');
   const [sequence, setSequence] = useState<KeyboardNote[]>(() => createLevelOneChallenge());
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -32,18 +38,16 @@ export default function App() {
     return () => audioService.stopAll();
   }, [volume]);
 
-  const flashKey = useCallback((key: string) => {
-    setActiveKey(key);
-    window.setTimeout(() => {
-      setActiveKey((current) => (current === key ? null : current));
-    }, 140);
-  }, []);
-
-  const playNote = useCallback(
+  const pressNote = useCallback(
     (note: KeyboardNote) => {
       void audioService.resume();
-      audioService.playTone(note.frequency, 0.42);
-      flashKey(note.key);
+      audioService.startTone(note.key, note.frequency);
+      setActiveKeys((current) => {
+        if (current.has(note.key)) return current;
+        const next = new Set(current);
+        next.add(note.key);
+        return next;
+      });
 
       if (mode !== 'challenge' || isComplete || !currentTarget) return;
 
@@ -60,8 +64,18 @@ export default function App() {
         setScore((value) => Math.max(0, value - 25));
       }
     },
-    [combo, currentTarget, flashKey, isComplete, mode],
+    [combo, currentTarget, isComplete, mode],
   );
+
+  const releaseNote = useCallback((key: string) => {
+    audioService.stopTone(key);
+    setActiveKeys((current) => {
+      if (!current.has(key)) return current;
+      const next = new Set(current);
+      next.delete(key);
+      return next;
+    });
+  }, []);
 
   const resetChallenge = useCallback(
     (type: ChallengeType = challengeType) => {
@@ -86,7 +100,8 @@ export default function App() {
   const switchMode = useCallback(
     (nextMode: GameMode) => {
       setMode(nextMode);
-      setActiveKey(null);
+      audioService.stopAll();
+      setActiveKeys(new Set());
       if (nextMode === 'challenge') resetChallenge();
     },
     [resetChallenge],
@@ -102,12 +117,32 @@ export default function App() {
       if (!note || event.repeat) return;
 
       event.preventDefault();
-      playNote(note);
+      pressNote(note);
+    };
+
+    const handleKeyUp = (event: KeyboardEvent) => {
+      const key = event.key.toUpperCase();
+      if (!keyMap.has(key)) return;
+
+      event.preventDefault();
+      releaseNote(key);
+    };
+
+    const releaseAll = () => {
+      audioService.stopAll();
+      setActiveKeys(new Set());
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [playNote]);
+    window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', releaseAll);
+
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', releaseAll);
+    };
+  }, [pressNote, releaseNote]);
 
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 text-white">
@@ -120,13 +155,13 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-lg font-black tracking-wide">Keyboard Music Game</h1>
-            <p className="text-xs text-slate-400">A S D F G H J K · Play by keyboard or tap</p>
+            <p className="text-xs text-slate-400">Z–M = C4–B4 · A–K = C5–C6</p>
           </div>
         </div>
 
         <div className="hidden text-right text-xs text-slate-400 sm:block">
           <div>HTML / Web Audio</div>
-          <div className="font-mono text-blue-300">8-note keyboard</div>
+          <div className="font-mono text-blue-300">15-note · C4–C6</div>
         </div>
       </header>
 
@@ -200,7 +235,7 @@ export default function App() {
           {mode === 'free' ? (
             <div className="mb-5 text-center">
               <div className="text-4xl font-black md:text-6xl">Free Play</div>
-              <p className="mt-2 text-sm text-slate-400">Press A–K or tap the piano keys below.</p>
+              <p className="mt-2 text-sm text-slate-400">Hold multiple keys together to play chords · Z–M lower · A–K upper.</p>
             </div>
           ) : isComplete ? (
             <div className="mb-5 text-center">
@@ -265,48 +300,76 @@ export default function App() {
             </>
           )}
 
-          <div className="mt-6 grid grid-cols-4 gap-2 md:grid-cols-8 md:gap-3" aria-label="Virtual music keyboard">
-            {KEYBOARD_NOTES.map((note) => {
-              const isActive = activeKey === note.key;
-              const isTarget = mode === 'challenge' && !isComplete && currentTarget?.key === note.key;
-
-              return (
-                <button
-                  key={note.key}
-                  type="button"
-                  onPointerDown={(event) => {
-                    event.preventDefault();
-                    playNote(note);
-                  }}
-                  className={`group flex min-h-32 flex-col items-center justify-between rounded-2xl border px-2 py-4 transition active:scale-[0.98] md:min-h-48 ${
-                    isActive
-                      ? 'border-blue-200 bg-blue-400 text-slate-950'
-                      : isTarget
-                        ? 'border-blue-400 bg-blue-500/15 text-white'
-                        : 'border-white/10 bg-gradient-to-b from-slate-100 to-slate-300 text-slate-950 hover:from-white hover:to-slate-200'
+          <div className="mt-6 space-y-2" aria-label="Virtual music keyboard">
+            {[
+              { label: 'High · C5–C6', notes: highRowNotes },
+              { label: 'Low · C4–B4', notes: lowRowNotes },
+            ].map((row) => (
+              <div key={row.label}>
+                <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
+                  {row.label}
+                </div>
+                <div
+                  className={`grid gap-2 ${
+                    row.notes.length === 8 ? 'grid-cols-4 md:grid-cols-8' : 'grid-cols-4 md:grid-cols-7'
                   }`}
-                  aria-label={`${note.key} key, ${note.label}, ${note.notation}`}
                 >
-                  <span
-                    className={`flex h-11 w-11 items-center justify-center rounded-xl font-mono text-xl font-black ${
-                      isActive ? 'bg-slate-950 text-white' : 'bg-slate-900 text-white'
-                    }`}
-                  >
-                    {note.key}
-                  </span>
-                  <div className="text-center">
-                    <div className="font-bold">{note.label}</div>
-                    <div className={`font-mono text-xs ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
-                      {note.notation}
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
+                  {row.notes.map((note) => {
+                    const isActive = activeKeys.has(note.key);
+                    const isTarget =
+                      mode === 'challenge' && !isComplete && currentTarget?.key === note.key;
+
+                    return (
+                      <button
+                        key={note.key}
+                        type="button"
+                        onPointerDown={(event) => {
+                          event.preventDefault();
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                          pressNote(note);
+                        }}
+                        onPointerUp={(event) => {
+                          event.preventDefault();
+                          releaseNote(note.key);
+                        }}
+                        onPointerCancel={() => releaseNote(note.key)}
+                        onLostPointerCapture={() => releaseNote(note.key)}
+                        className={`group flex min-h-24 flex-col items-center justify-between rounded-2xl border px-2 py-3 transition active:scale-[0.98] md:min-h-32 ${
+                          isActive
+                            ? 'border-blue-200 bg-blue-400 text-slate-950'
+                            : isTarget
+                              ? 'border-blue-400 bg-blue-500/15 text-white'
+                              : 'border-white/10 bg-gradient-to-b from-slate-100 to-slate-300 text-slate-950 hover:from-white hover:to-slate-200'
+                        }`}
+                        aria-label={`${note.key} key, ${note.label}, ${note.notation}`}
+                      >
+                        <span
+                          className={`flex h-9 w-9 items-center justify-center rounded-lg font-mono text-lg font-black ${
+                            isActive ? 'bg-slate-950 text-white' : 'bg-slate-900 text-white'
+                          }`}
+                        >
+                          {note.key}
+                        </span>
+                        <div className="text-center">
+                          <div className="text-sm font-bold">{note.label}</div>
+                          <div
+                            className={`font-mono text-[11px] ${
+                              isActive ? 'text-slate-800' : 'text-slate-500'
+                            }`}
+                          >
+                            {note.notation}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
-            <span>Tip: Use both hands across A–K.</span>
+            <span>Tip: Hold several keys at once for polyphonic chords.</span>
             {mode === 'challenge' && (
               <button
                 type="button"
