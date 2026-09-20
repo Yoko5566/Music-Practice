@@ -33,21 +33,32 @@ export const LOW_ROW_KEYS = ['Z', 'X', 'C', 'V', 'B', 'N', 'M', ','] as const;
 export const MID_ROW_KEYS = ['A', 'S', 'D', 'F', 'G', 'H', 'J', 'K'] as const;
 export const HIGH_ROW_KEYS = ['Q', 'W', 'E', 'R', 'T', 'Y', 'U', 'I'] as const;
 
-export const CHALLENGE_LENGTH = 16;
 export const LEVEL_ONE_KEYS = 'ASDFGHGHJKKKKJHGGGGHAAAHHHGAAAASDFDSADSASA';
+
+// Public-domain Beethoven melody, transposed to C major for a white-key practice exercise.
+export const ODE_TO_JOY_KEYS =
+  'DDFGGFDSAASDDSS' +
+  'DDFGGFDSAASDSAA';
+
+// Simplified single-note extraction of the opening C-major arpeggio texture from BWV 846.
+export const BACH_PRELUDE_KEYS = 'ADGQEGQEADGQEGQE';
+
 export const DEFAULT_VOLUME = 0.5;
 
-export const createChallenge = (length = CHALLENGE_LENGTH): KeyboardNote[] =>
-  Array.from({ length }, () => {
-    const index = Math.floor(Math.random() * KEYBOARD_NOTES.length);
-    return KEYBOARD_NOTES[index];
-  });
-
-export const createLevelOneChallenge = (): KeyboardNote[] =>
-  LEVEL_ONE_KEYS.split('').map((key) => {
+const keysToNotes = (keys: string, label: string): KeyboardNote[] =>
+  keys.split('').map((key) => {
     const note = KEYBOARD_NOTES.find((item) => item.key === key);
     if (!note) {
-      throw new Error(`Unsupported Level 1 key: ${key}`);
+      throw new Error(`Unsupported ${label} key: ${key}`);
     }
     return note;
   });
+
+export const createLevelOneChallenge = (): KeyboardNote[] =>
+  keysToNotes(LEVEL_ONE_KEYS, 'Level 1');
+
+export const createOdeToJoyChallenge = (): KeyboardNote[] =>
+  keysToNotes(ODE_TO_JOY_KEYS, 'Ode to Joy');
+
+export const createBachPreludeChallenge = (): KeyboardNote[] =>
+  keysToNotes(BACH_PRELUDE_KEYS, 'Bach Prelude');

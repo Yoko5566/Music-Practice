@@ -4,7 +4,7 @@ A lightweight browser music game built with React, TypeScript, Vite, and the Web
 
 ## Play
 
-The keyboard now provides three playable white-key octaves from **C3 through C6**.
+The keyboard provides three playable white-key octaves from **C3 through C6**.
 
 ### High octave
 
@@ -51,12 +51,37 @@ The keyboard now provides three playable white-key octaves from **C3 through C6*
 
 Play all three octaves from the computer keyboard or the on-screen keys. Hold multiple keys at the same time to play polyphonic chords; each note sustains until its key is released.
 
+### Loop Recorder
+
+Free Play includes a small loop recorder:
+
+1. press **Record**
+2. play a phrase
+3. press **Stop**
+4. press **Loop** to hear the timed phrase repeat
+5. press **Make Challenge** to convert the recorded note-on order into a playable Challenge
+
+The current version keeps the loop in browser memory for the current session. Chords can be recorded and looped; when converted to Challenge, note attacks are practiced in their recorded order.
+
 ### Challenge
 
-- **Level 1** keeps the existing fixed A–K sequence on the middle octave.
-- **Random** generates a 16-key challenge from the full three-octave keyboard.
+Challenge now includes:
+
+- **Level 1** — the original fixed A–K exercise
+- **Beethoven · Ode to Joy** — a C-major white-key practice adaptation of the public-domain melody
+- **Bach · Prelude in C Major, BWV 846** — a simplified single-note opening arpeggio exercise
+- **My Loop** — appears after a loop recording is converted into a Challenge
 
 Correct notes advance the pattern and build the combo. Accuracy tracks correct inputs, while wrong notes reset the combo.
+
+## Classical source note
+
+The underlying Beethoven and Bach compositions are in the public domain. The in-game sequences are simplified practice adaptations rather than reproductions of a modern commercial score edition.
+
+Reference scores:
+
+- Mutopia Project — Beethoven, *Ode to Joy*: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=528
+- Mutopia Project — J. S. Bach, *Prelude in C Major, BWV 846*: https://www.mutopiaproject.org/cgibin/piece-info.cgi?id=5
 
 ## Volume
 
@@ -71,7 +96,7 @@ The main interface uses a compact speaker button. Tap or click the speaker icon 
 - Lucide React
 - Web Audio API
 
-No external music, lyrics, audio files, AI API, or API keys are required.
+No external music recordings, lyrics, AI API, or API keys are required.
 
 ## Run locally
 
