@@ -202,6 +202,7 @@ export default function App() {
   const clearRecording = useCallback(() => {
     stopLoopPlayback();
     setIsRecording(false);
+    setActiveKeys(new Set());
     recordingDraftRef.current = [];
     recordingActiveRef.current.clear();
     setRecordedNotes([]);
