@@ -1,8 +1,32 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Gamepad2, RotateCcw, Volume2 } from 'lucide-react';
-import { CHALLENGE_LENGTH, createChallenge, createLevelOneChallenge, DEFAULT_VOLUME, HIGH_ROW_KEYS, KEYBOARD_NOTES, LOW_ROW_KEYS, MID_ROW_KEYS } from './constants';
+import {
+  Circle,
+  Gamepad2,
+  ListMusic,
+  Repeat2,
+  RotateCcw,
+  Square,
+  Trash2,
+  Volume2,
+} from 'lucide-react';
+import {
+  createBachPreludeChallenge,
+  createLevelOneChallenge,
+  createOdeToJoyChallenge,
+  DEFAULT_VOLUME,
+  HIGH_ROW_KEYS,
+  KEYBOARD_NOTES,
+  LOW_ROW_KEYS,
+  MID_ROW_KEYS,
+} from './constants';
 import { audioService } from './services/audioService';
 import { ChallengeType, GameMode, KeyboardNote } from './types';
+
+interface RecordedNote {
+  key: string;
+  startMs: number;
+  durationMs: number;
+}
 
 const keyMap = new Map(KEYBOARD_NOTES.map((note) => [note.key, note]));
 const lowRowNotes = LOW_ROW_KEYS.map((key) => keyMap.get(key)).filter(
@@ -21,12 +45,23 @@ export default function App() {
   const [isVolumeOpen, setIsVolumeOpen] = useState(false);
   const volumePopoverRef = useRef<HTMLDivElement | null>(null);
   const [activeKeys, setActiveKeys] = useState<Set<string>>(() => new Set());
+
   const [challengeType, setChallengeType] = useState<ChallengeType>('level1');
   const [sequence, setSequence] = useState<KeyboardNote[]>(() => createLevelOneChallenge());
+  const [customChallenge, setCustomChallenge] = useState<KeyboardNote[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [combo, setCombo] = useState(0);
   const [attempts, setAttempts] = useState(0);
   const [correctHits, setCorrectHits] = useState(0);
+
+  const [isRecording, setIsRecording] = useState(false);
+  const [isLooping, setIsLooping] = useState(false);
+  const [recordedNotes, setRecordedNotes] = useState<RecordedNote[]>([]);
+  const recordingStartedAtRef = useRef(0);
+  const recordingDraftRef = useRef<RecordedNote[]>([]);
+  const recordingActiveRef = useRef<Map<string, number>>(new Map());
+  const loopTimeoutsRef = useRef<number[]>([]);
+  const loopGenerationRef = useRef(0);
 
   const isComplete = mode === 'challenge' && currentIndex >= sequence.length;
   const currentTarget = sequence[currentIndex] ?? null;
@@ -36,6 +71,14 @@ export default function App() {
     () => sequence.slice(currentIndex, currentIndex + 8),
     [sequence, currentIndex],
   );
+
+  const recordedDurationMs = useMemo(() => {
+    if (recordedNotes.length === 0) return 0;
+    return Math.max(
+      300,
+      ...recordedNotes.map((note) => note.startMs + note.durationMs + 120),
+    );
+  }, [recordedNotes]);
 
   useEffect(() => {
     audioService.setMasterVolume(volume);
@@ -56,10 +99,179 @@ export default function App() {
     return () => window.removeEventListener('pointerdown', handlePointerDown);
   }, [isVolumeOpen]);
 
+  const clearLoopTimers = useCallback(() => {
+    loopTimeoutsRef.current.forEach((timer) => window.clearTimeout(timer));
+    loopTimeoutsRef.current = [];
+  }, []);
+
+  const stopLoopPlayback = useCallback(() => {
+    loopGenerationRef.current += 1;
+    clearLoopTimers();
+    audioService.stopAll();
+    setIsLooping(false);
+  }, [clearLoopTimers]);
+
+  const finalizeRecordedNote = useCallback((key: string, now = performance.now()) => {
+    const startedAt = recordingActiveRef.current.get(key);
+    if (startedAt === undefined) return;
+
+    recordingActiveRef.current.delete(key);
+    recordingDraftRef.current.push({
+      key,
+      startMs: startedAt,
+      durationMs: Math.max(60, now - recordingStartedAtRef.current - startedAt),
+    });
+  }, []);
+
+  const startRecording = useCallback(() => {
+    stopLoopPlayback();
+    audioService.stopAll();
+    setActiveKeys(new Set());
+    recordingDraftRef.current = [];
+    recordingActiveRef.current.clear();
+    recordingStartedAtRef.current = performance.now();
+    setRecordedNotes([]);
+    setIsRecording(true);
+  }, [stopLoopPlayback]);
+
+  const stopRecording = useCallback(() => {
+    if (!isRecording) return;
+
+    const elapsed = performance.now() - recordingStartedAtRef.current;
+    for (const [key, startMs] of recordingActiveRef.current.entries()) {
+      recordingDraftRef.current.push({
+        key,
+        startMs,
+        durationMs: Math.max(60, elapsed - startMs),
+      });
+    }
+
+    recordingActiveRef.current.clear();
+    const finished = [...recordingDraftRef.current].sort(
+      (a, b) => a.startMs - b.startMs,
+    );
+    recordingDraftRef.current = finished;
+    setRecordedNotes(finished);
+    setIsRecording(false);
+    audioService.stopAll();
+    setActiveKeys(new Set());
+  }, [isRecording]);
+
+  const startLoopPlayback = useCallback(() => {
+    if (recordedNotes.length === 0 || recordedDurationMs <= 0) return;
+
+    stopLoopPlayback();
+    void audioService.resume();
+    setIsLooping(true);
+
+    const generation = loopGenerationRef.current;
+    let cycle = 0;
+
+    const scheduleCycle = () => {
+      if (generation !== loopGenerationRef.current) return;
+
+      recordedNotes.forEach((recorded, index) => {
+        const note = keyMap.get(recorded.key);
+        if (!note) return;
+
+        const voiceId = `loop-${generation}-${cycle}-${index}`;
+
+        loopTimeoutsRef.current.push(
+          window.setTimeout(() => {
+            if (generation !== loopGenerationRef.current) return;
+            audioService.startTone(voiceId, note.frequency);
+          }, recorded.startMs),
+        );
+
+        loopTimeoutsRef.current.push(
+          window.setTimeout(() => {
+            audioService.stopTone(voiceId);
+          }, recorded.startMs + recorded.durationMs),
+        );
+      });
+
+      cycle += 1;
+      loopTimeoutsRef.current.push(
+        window.setTimeout(scheduleCycle, recordedDurationMs),
+      );
+    };
+
+    scheduleCycle();
+  }, [recordedDurationMs, recordedNotes, stopLoopPlayback]);
+
+  const clearRecording = useCallback(() => {
+    stopLoopPlayback();
+    setIsRecording(false);
+    recordingDraftRef.current = [];
+    recordingActiveRef.current.clear();
+    setRecordedNotes([]);
+    setCustomChallenge([]);
+  }, [stopLoopPlayback]);
+
+  const buildChallenge = useCallback(
+    (type: ChallengeType): KeyboardNote[] => {
+      switch (type) {
+        case 'ode':
+          return createOdeToJoyChallenge();
+        case 'bach':
+          return createBachPreludeChallenge();
+        case 'recording':
+          return customChallenge.length > 0
+            ? [...customChallenge]
+            : createLevelOneChallenge();
+        case 'level1':
+        default:
+          return createLevelOneChallenge();
+      }
+    },
+    [customChallenge],
+  );
+
+  const resetChallenge = useCallback(
+    (type: ChallengeType = challengeType) => {
+      setSequence(buildChallenge(type));
+      setCurrentIndex(0);
+      setCombo(0);
+      setAttempts(0);
+      setCorrectHits(0);
+    },
+    [buildChallenge, challengeType],
+  );
+
+  const selectChallenge = useCallback(
+    (type: ChallengeType) => {
+      stopLoopPlayback();
+      setChallengeType(type);
+      resetChallenge(type);
+    },
+    [resetChallenge, stopLoopPlayback],
+  );
+
+  const makeChallengeFromRecording = useCallback(() => {
+    if (recordedNotes.length === 0) return;
+
+    stopLoopPlayback();
+    const notes = recordedNotes
+      .map((recorded) => keyMap.get(recorded.key))
+      .filter((note): note is KeyboardNote => Boolean(note));
+
+    if (notes.length === 0) return;
+
+    setCustomChallenge(notes);
+    setChallengeType('recording');
+    setSequence(notes);
+    setCurrentIndex(0);
+    setCombo(0);
+    setAttempts(0);
+    setCorrectHits(0);
+    setMode('challenge');
+  }, [recordedNotes, stopLoopPlayback]);
+
   const pressNote = useCallback(
     (note: KeyboardNote) => {
       void audioService.resume();
       audioService.startTone(note.key, note.frequency);
+
       setActiveKeys((current) => {
         if (current.has(note.key)) return current;
         const next = new Set(current);
@@ -67,59 +279,58 @@ export default function App() {
         return next;
       });
 
+      if (mode === 'free' && isRecording && !recordingActiveRef.current.has(note.key)) {
+        recordingActiveRef.current.set(
+          note.key,
+          performance.now() - recordingStartedAtRef.current,
+        );
+      }
+
       if (mode !== 'challenge' || isComplete || !currentTarget) return;
 
       setAttempts((value) => value + 1);
 
       if (note.key === currentTarget.key) {
-        const nextCombo = combo + 1;
-        setCombo(nextCombo);
+        setCombo((value) => value + 1);
         setCorrectHits((value) => value + 1);
         setCurrentIndex((value) => value + 1);
       } else {
         setCombo(0);
       }
     },
-    [combo, currentTarget, isComplete, mode],
+    [currentTarget, isComplete, isRecording, mode],
   );
 
-  const releaseNote = useCallback((key: string) => {
-    audioService.stopTone(key);
-    setActiveKeys((current) => {
-      if (!current.has(key)) return current;
-      const next = new Set(current);
-      next.delete(key);
-      return next;
-    });
-  }, []);
+  const releaseNote = useCallback(
+    (key: string) => {
+      audioService.stopTone(key);
 
-  const resetChallenge = useCallback(
-    (type: ChallengeType = challengeType) => {
-      setSequence(type === 'level1' ? createLevelOneChallenge() : createChallenge(CHALLENGE_LENGTH));
-      setCurrentIndex(0);
-      setCombo(0);
-      setAttempts(0);
-      setCorrectHits(0);
-    },
-    [challengeType],
-  );
+      if (mode === 'free' && isRecording) {
+        finalizeRecordedNote(key);
+      }
 
-  const selectChallenge = useCallback(
-    (type: ChallengeType) => {
-      setChallengeType(type);
-      resetChallenge(type);
+      setActiveKeys((current) => {
+        if (!current.has(key)) return current;
+        const next = new Set(current);
+        next.delete(key);
+        return next;
+      });
     },
-    [resetChallenge],
+    [finalizeRecordedNote, isRecording, mode],
   );
 
   const switchMode = useCallback(
     (nextMode: GameMode) => {
+      if (isRecording) {
+        stopRecording();
+      }
+      stopLoopPlayback();
       setMode(nextMode);
       audioService.stopAll();
       setActiveKeys(new Set());
       if (nextMode === 'challenge') resetChallenge();
     },
-    [resetChallenge],
+    [isRecording, resetChallenge, stopLoopPlayback, stopRecording],
   );
 
   useEffect(() => {
@@ -144,6 +355,9 @@ export default function App() {
     };
 
     const releaseAll = () => {
+      if (isRecording) {
+        stopRecording();
+      }
       audioService.stopAll();
       setActiveKeys(new Set());
     };
@@ -157,7 +371,24 @@ export default function App() {
       window.removeEventListener('keyup', handleKeyUp);
       window.removeEventListener('blur', releaseAll);
     };
-  }, [pressNote, releaseNote]);
+  }, [isRecording, pressNote, releaseNote, stopRecording]);
+
+  useEffect(
+    () => () => {
+      clearLoopTimers();
+      audioService.stopAll();
+    },
+    [clearLoopTimers],
+  );
+
+  const challengeLabel =
+    challengeType === 'ode'
+      ? 'Beethoven · Ode to Joy'
+      : challengeType === 'bach'
+        ? 'Bach · BWV 846'
+        : challengeType === 'recording'
+          ? 'My Loop Challenge'
+          : 'Level 1';
 
   return (
     <div className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 text-white">
@@ -238,37 +469,137 @@ export default function App() {
 
         <section className="mx-auto mt-4 flex min-h-0 w-full max-w-5xl flex-1 flex-col justify-center">
           {mode === 'challenge' && (
-            <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
-              <button
-                type="button"
-                onClick={() => selectChallenge('level1')}
-                className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
-                  challengeType === 'level1'
-                    ? 'border-blue-300 bg-blue-500 text-white'
-                    : 'border-white/10 bg-slate-900/80 text-slate-400 hover:text-white'
-                }`}
-              >
-                Level 1 · 42 Keys
-              </button>
-              <button
-                type="button"
-                onClick={() => selectChallenge('random')}
-                className={`rounded-xl border px-4 py-2 text-sm font-bold transition ${
-                  challengeType === 'random'
-                    ? 'border-blue-300 bg-blue-500 text-white'
-                    : 'border-white/10 bg-slate-900/80 text-slate-400 hover:text-white'
-                }`}
-              >
-                Random · 16 Keys
-              </button>
-            </div>
+            <>
+              <div className="mb-2 text-center text-xs font-bold uppercase tracking-[0.18em] text-slate-500">
+                {challengeLabel}
+              </div>
+              <div className="mb-4 flex flex-wrap items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => selectChallenge('level1')}
+                  className={`rounded-xl border px-3 py-2 text-xs font-bold transition md:text-sm ${
+                    challengeType === 'level1'
+                      ? 'border-blue-300 bg-blue-500 text-white'
+                      : 'border-white/10 bg-slate-900/80 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Level 1
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectChallenge('ode')}
+                  className={`rounded-xl border px-3 py-2 text-xs font-bold transition md:text-sm ${
+                    challengeType === 'ode'
+                      ? 'border-blue-300 bg-blue-500 text-white'
+                      : 'border-white/10 bg-slate-900/80 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Ode to Joy
+                </button>
+                <button
+                  type="button"
+                  onClick={() => selectChallenge('bach')}
+                  className={`rounded-xl border px-3 py-2 text-xs font-bold transition md:text-sm ${
+                    challengeType === 'bach'
+                      ? 'border-blue-300 bg-blue-500 text-white'
+                      : 'border-white/10 bg-slate-900/80 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  Bach BWV 846
+                </button>
+                {customChallenge.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => selectChallenge('recording')}
+                    className={`rounded-xl border px-3 py-2 text-xs font-bold transition md:text-sm ${
+                      challengeType === 'recording'
+                        ? 'border-violet-300 bg-violet-500 text-white'
+                        : 'border-white/10 bg-slate-900/80 text-slate-400 hover:text-white'
+                    }`}
+                  >
+                    My Loop · {customChallenge.length}
+                  </button>
+                )}
+              </div>
+            </>
           )}
 
           {mode === 'free' ? (
-            <div className="mb-5 text-center">
-              <div className="text-4xl font-black md:text-6xl">Free Play</div>
-              <p className="mt-2 text-sm text-slate-400">Three octaves · hold multiple keys together to play chords.</p>
-            </div>
+            <>
+              <div className="mb-3 text-center">
+                <div className="text-4xl font-black md:text-6xl">Free Play</div>
+                <p className="mt-2 text-sm text-slate-400">
+                  Three octaves · hold multiple keys together to play chords.
+                </p>
+              </div>
+
+              <div className="mb-4 rounded-2xl border border-white/10 bg-slate-900/70 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm font-black text-white">Loop Recorder</div>
+                    <div className="text-xs text-slate-500">
+                      {isRecording
+                        ? 'Recording note timing…'
+                        : recordedNotes.length > 0
+                          ? `${recordedNotes.length} notes · ${(recordedDurationMs / 1000).toFixed(1)}s loop`
+                          : 'Record a phrase, loop it, then turn it into a Challenge.'}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {!isRecording ? (
+                      <button
+                        type="button"
+                        onClick={startRecording}
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-red-400/30 bg-red-500/10 px-3 py-2 text-xs font-bold text-red-300 transition hover:bg-red-500/20"
+                      >
+                        <Circle size={14} fill="currentColor" />
+                        Record
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={stopRecording}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-red-500 px-3 py-2 text-xs font-bold text-white transition active:scale-95"
+                      >
+                        <Square size={13} fill="currentColor" />
+                        Stop
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={isLooping ? stopLoopPlayback : startLoopPlayback}
+                      disabled={recordedNotes.length === 0 || isRecording}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-200 transition enabled:hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-35"
+                    >
+                      <Repeat2 size={14} />
+                      {isLooping ? 'Stop Loop' : 'Loop'}
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={makeChallengeFromRecording}
+                      disabled={recordedNotes.length === 0 || isRecording}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-violet-400/30 bg-violet-500/10 px-3 py-2 text-xs font-bold text-violet-300 transition enabled:hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-35"
+                    >
+                      <ListMusic size={14} />
+                      Make Challenge
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={clearRecording}
+                      disabled={recordedNotes.length === 0 && !isRecording}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-slate-800 text-slate-400 transition enabled:hover:text-white disabled:cursor-not-allowed disabled:opacity-35"
+                      aria-label="Clear recording"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
           ) : isComplete ? (
             <div className="mb-5 text-center">
               <div className="text-4xl font-black text-emerald-300 md:text-6xl">Challenge Clear</div>
@@ -281,7 +612,7 @@ export default function App() {
                 className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 font-bold text-white transition active:scale-95"
               >
                 <RotateCcw size={18} />
-                {challengeType === 'level1' ? 'Retry Level 1' : 'Play Again'}
+                Retry
               </button>
             </div>
           ) : (
@@ -371,7 +702,7 @@ export default function App() {
                             isActive ? 'bg-slate-950 text-white' : 'bg-slate-900 text-white'
                           }`}
                         >
-                          {note.key === ',' ? ',' : note.key}
+                          {note.key}
                         </span>
                         <div className="text-center leading-tight">
                           <div className="text-[11px] font-bold md:text-sm">{note.label}</div>
@@ -392,7 +723,11 @@ export default function App() {
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
-            <span>Keys: Q–I high · A–K mid · Z–, low.</span>
+            <span>
+              {mode === 'free'
+                ? 'Loop Challenge uses the order of recorded note attacks.'
+                : 'Keys: Q–I high · A–K mid · Z–, low.'}
+            </span>
             {mode === 'challenge' && (
               <button
                 type="button"
@@ -400,7 +735,7 @@ export default function App() {
                 className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/80 px-3 py-2 font-semibold text-slate-300 hover:text-white"
               >
                 <RotateCcw size={14} />
-                {challengeType === 'level1' ? 'Restart Level' : 'New Pattern'}
+                Restart
               </button>
             )}
           </div>
