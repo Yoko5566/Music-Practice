@@ -56,7 +56,7 @@ Play all three octaves from the computer keyboard or the on-screen keys. Hold mu
 - **Level 1** keeps the existing fixed A–K sequence on the middle octave.
 - **Random** generates a 16-key challenge from the full three-octave keyboard.
 
-Correct notes advance the pattern, build combo, increase score, and improve accuracy. Wrong notes reset the combo and reduce the score slightly.
+Correct notes advance the pattern and build the combo. Accuracy tracks correct inputs, while wrong notes reset the combo.
 
 ## Volume
 
