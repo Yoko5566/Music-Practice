@@ -1,17 +1,38 @@
-# Music Practice
+# Keyboard Music Game
 
-A lightweight React + TypeScript music-practice web app for stepping through lyrics and numbered notation with tap or autoplay controls.
+A lightweight browser music game built with React, TypeScript, Vite, and the Web Audio API.
 
-## Current features
+## Play
 
-- Tap anywhere to advance one note at a time
-- Autoplay mode with adjustable BPM
-- Master volume control
-- Step back and reset controls
-- Keyboard navigation
-- Numbered notation and lyric progress display
-- Web Audio API tone synthesis
-- Reduced-motion accessibility support
+Use the computer keyboard or the on-screen keys:
+
+| Key | Note |
+| --- | --- |
+| A | C4 / Do |
+| S | D4 / Re |
+| D | E4 / Mi |
+| F | F4 / Fa |
+| G | G4 / Sol |
+| H | A4 / La |
+| J | B4 / Ti |
+| K | C5 / Do |
+
+## Game modes
+
+### Free Play
+
+Play the eight-note keyboard freely using A–K or by tapping the virtual keys.
+
+### Challenge
+
+The game generates a random 16-note pattern. Match the displayed target keys to:
+
+- advance through the pattern
+- build a combo
+- increase your score
+- track accuracy
+
+Wrong notes reset the combo and reduce the score slightly.
 
 ## Tech stack
 
@@ -22,47 +43,36 @@ A lightweight React + TypeScript music-practice web app for stepping through lyr
 - Lucide React
 - Web Audio API
 
+No external music, lyrics, audio files, AI API, or API keys are required.
+
 ## Run locally
 
 ```bash
 npm install
+npm run typecheck
+npm run build
 npm run dev
 ```
 
-Then open the local URL shown by Vite. The development server is configured to use port `3000`.
-
-## Validation
-
-```bash
-npm run typecheck
-npm run build
-```
+Vite is configured to run locally on port `3000`.
 
 ## Project structure
 
 ```text
 Music-Practice/
-├── App.tsx                 # Main UI and playback state
-├── constants.ts           # BPM, pitch table, lyrics and note data
-├── types.ts               # Shared TypeScript data types
+├── App.tsx
+├── constants.ts
+├── types.ts
 ├── services/
-│   └── audioService.ts    # Web Audio API synthesizer service
-├── index.tsx              # React entry point
-├── index.html             # App shell and global inline styles
-├── metadata.json          # AI Studio app metadata
-├── vite.config.ts         # Vite development/build configuration
-├── tsconfig.json          # TypeScript configuration
-└── package.json           # Dependencies and scripts
+│   └── audioService.ts
+├── index.tsx
+├── index.html
+├── metadata.json
+├── vite.config.ts
+├── tsconfig.json
+└── package.json
 ```
 
-## Security note
+## Public-release note
 
-The current app does not require Gemini or any other API key. Secrets should never be committed to the repository. Local `.env` files are ignored by Git.
-
-## Phase 1 cleanup
-
-The initial Google AI Studio export included unused Gemini environment-variable injection and browser import-map remnants. Phase 1 removes those template artifacts without changing the app's UI or playback behavior.
-
-## Next development direction
-
-The current song data is hard-coded in `constants.ts`. A logical next phase is to separate song content from application configuration so multiple songs and practice modes can be added without expanding the main application component.
+This version uses generated note challenges and synthesized Web Audio tones. It does not include the previous third-party song lyrics or song-specific note sequence, making it substantially cleaner for a public demo or portfolio project.

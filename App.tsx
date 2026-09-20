@@ -1,379 +1,286 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Gauge, Music, Pause, Play, RotateCcw, Volume2 } from 'lucide-react';
-import { DEFAULT_BPM, MAX_BPM, MIN_BPM, SONG_DATA } from './constants';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Gamepad2, RotateCcw, Volume2 } from 'lucide-react';
+import { CHALLENGE_LENGTH, createChallenge, DEFAULT_VOLUME, KEYBOARD_NOTES } from './constants';
 import { audioService } from './services/audioService';
+import { GameMode, KeyboardNote } from './types';
 
-const FLAT_NOTES = SONG_DATA.flatMap((line) => line.notes);
-
-interface Ripple {
-  x: number;
-  y: number;
-  id: number;
-}
-
-const getLineId = (noteIndex: number) => {
-  let count = 0;
-
-  for (const line of SONG_DATA) {
-    if (noteIndex >= count && noteIndex < count + line.notes.length) {
-      return line.id;
-    }
-    count += line.notes.length;
-  }
-
-  return SONG_DATA[SONG_DATA.length - 1].id;
-};
+const keyMap = new Map(KEYBOARD_NOTES.map((note) => [note.key, note]));
 
 export default function App() {
+  const [mode, setMode] = useState<GameMode>('free');
+  const [volume, setVolume] = useState(DEFAULT_VOLUME);
+  const [activeKey, setActiveKey] = useState<string | null>(null);
+  const [sequence, setSequence] = useState<KeyboardNote[]>(() => createChallenge());
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isAutoPlaying, setIsAutoPlaying] = useState(false);
-  const [bpm, setBpm] = useState(DEFAULT_BPM);
-  const [volume, setVolume] = useState(0.5);
-  const [isPulsing, setIsPulsing] = useState(false);
-  const [ripples, setRipples] = useState<Ripple[]>([]);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const pulseTimerRef = useRef<number | null>(null);
+  const [score, setScore] = useState(0);
+  const [combo, setCombo] = useState(0);
+  const [attempts, setAttempts] = useState(0);
+  const [correctHits, setCorrectHits] = useState(0);
 
-  const isFinished = currentIndex >= FLAT_NOTES.length;
-  const currentNote = FLAT_NOTES[currentIndex] ?? FLAT_NOTES[FLAT_NOTES.length - 1];
-  const activeLineId = getLineId(currentIndex);
-  const progress = Math.min(100, (currentIndex / FLAT_NOTES.length) * 100);
+  const isComplete = mode === 'challenge' && currentIndex >= sequence.length;
+  const currentTarget = sequence[currentIndex] ?? null;
+  const accuracy = attempts === 0 ? 100 : Math.round((correctHits / attempts) * 100);
 
-  const stopPlayback = useCallback(() => {
-    setIsAutoPlaying(false);
-    audioService.stopAll();
-  }, []);
-
-  const pulse = useCallback(() => {
-    setIsPulsing(true);
-    if (pulseTimerRef.current !== null) {
-      window.clearTimeout(pulseTimerRef.current);
-    }
-    pulseTimerRef.current = window.setTimeout(() => setIsPulsing(false), 120);
-  }, []);
+  const nextPreview = useMemo(
+    () => sequence.slice(currentIndex, currentIndex + 8),
+    [sequence, currentIndex],
+  );
 
   useEffect(() => {
     audioService.setMasterVolume(volume);
+    return () => audioService.stopAll();
   }, [volume]);
 
-  useEffect(() => {
-    return () => {
-      if (pulseTimerRef.current !== null) {
-        window.clearTimeout(pulseTimerRef.current);
-      }
-      audioService.stopAll();
-    };
+  const flashKey = useCallback((key: string) => {
+    setActiveKey(key);
+    window.setTimeout(() => {
+      setActiveKey((current) => (current === key ? null : current));
+    }, 140);
   }, []);
 
-  useEffect(() => {
-    if (!isAutoPlaying) return;
+  const playNote = useCallback(
+    (note: KeyboardNote) => {
+      void audioService.resume();
+      audioService.playTone(note.frequency, 0.42);
+      flashKey(note.key);
 
-    if (isFinished) {
-      setIsAutoPlaying(false);
-      return;
-    }
+      if (mode !== 'challenge' || isComplete || !currentTarget) return;
 
-    const note = FLAT_NOTES[currentIndex];
-    const beatMs = 60_000 / bpm;
-    const noteLengthSeconds = Math.max(0.12, (note.beats * beatMs * 0.85) / 1_000);
+      setAttempts((value) => value + 1);
 
-    audioService.playTone(note.pitch, noteLengthSeconds);
-    pulse();
-
-    const timer = window.setTimeout(() => {
-      setCurrentIndex((previous) => Math.min(previous + 1, FLAT_NOTES.length));
-    }, note.beats * beatMs);
-
-    return () => window.clearTimeout(timer);
-  }, [bpm, currentIndex, isAutoPlaying, isFinished, pulse]);
-
-  const addRipple = useCallback((x: number, y: number) => {
-    const id = Date.now() + Math.random();
-    setRipples((previous) => [...previous.slice(-4), { x, y, id }]);
-    window.setTimeout(
-      () => setRipples((previous) => previous.filter((ripple) => ripple.id !== id)),
-      600,
-    );
-  }, []);
-
-  const triggerManualNote = useCallback(
-    (x?: number, y?: number) => {
-      if (isFinished) return;
-
-      stopPlayback();
-      const note = FLAT_NOTES[currentIndex];
-      audioService.playTone(note.pitch, 0.4);
-      pulse();
-
-      if (x !== undefined && y !== undefined) {
-        addRipple(x, y);
+      if (note.key === currentTarget.key) {
+        const nextCombo = combo + 1;
+        setCombo(nextCombo);
+        setCorrectHits((value) => value + 1);
+        setScore((value) => value + 100 + Math.min(nextCombo * 10, 200));
+        setCurrentIndex((value) => value + 1);
+      } else {
+        setCombo(0);
+        setScore((value) => Math.max(0, value - 25));
       }
-
-      setCurrentIndex((previous) => Math.min(previous + 1, FLAT_NOTES.length));
     },
-    [addRipple, currentIndex, isFinished, pulse, stopPlayback],
+    [combo, currentTarget, flashKey, isComplete, mode],
   );
 
-  const resetSong = useCallback(() => {
-    stopPlayback();
+  const resetChallenge = useCallback(() => {
+    setSequence(createChallenge(CHALLENGE_LENGTH));
     setCurrentIndex(0);
-  }, [stopPlayback]);
+    setScore(0);
+    setCombo(0);
+    setAttempts(0);
+    setCorrectHits(0);
+  }, []);
 
-  const toggleAutoPlay = useCallback(() => {
-    void audioService.resume();
-
-    if (isAutoPlaying) {
-      stopPlayback();
-      return;
-    }
-
-    if (isFinished) {
-      setCurrentIndex(0);
-    }
-    setIsAutoPlaying(true);
-  }, [isAutoPlaying, isFinished, stopPlayback]);
-
-  const stepBack = useCallback(() => {
-    stopPlayback();
-    setCurrentIndex((previous) => Math.max(0, previous - 1));
-  }, [stopPlayback]);
+  const switchMode = useCallback(
+    (nextMode: GameMode) => {
+      setMode(nextMode);
+      setActiveKey(null);
+      if (nextMode === 'challenge') resetChallenge();
+    },
+    [resetChallenge],
+  );
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
       const target = event.target as HTMLElement | null;
-      if (target?.tagName === 'INPUT') return;
+      if (target && ['INPUT', 'BUTTON', 'SELECT', 'TEXTAREA'].includes(target.tagName)) return;
 
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(event.key)) {
-        event.preventDefault();
-      }
+      const key = event.key.toUpperCase();
+      const note = keyMap.get(key);
+      if (!note || event.repeat) return;
 
-      if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
-        triggerManualNote(window.innerWidth / 2, window.innerHeight / 2);
-      } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
-        stepBack();
-      } else if (event.key === ' ') {
-        toggleAutoPlay();
-      }
+      event.preventDefault();
+      playNote(note);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [stepBack, toggleAutoPlay, triggerManualNote]);
-
-  useEffect(() => {
-    const container = scrollRef.current;
-    const activeElement = document.getElementById(`lyric-line-${activeLineId}`);
-
-    if (!container || !activeElement) return;
-
-    const containerRect = container.getBoundingClientRect();
-    const activeRect = activeElement.getBoundingClientRect();
-    const targetScrollTop =
-      container.scrollTop +
-      (activeRect.top - containerRect.top) -
-      (container.clientHeight - activeElement.clientHeight) / 2;
-
-    container.scrollTo({
-      top: Math.max(0, targetScrollTop),
-      behavior: 'smooth',
-    });
-  }, [activeLineId]);
-
-  const handlePointerDown = (event: React.PointerEvent) => {
-    event.preventDefault();
-    triggerManualNote(event.clientX, event.clientY);
-  };
+  }, [playNote]);
 
   return (
-    <div
-      className="relative flex h-[100dvh] max-h-[100dvh] w-full touch-none select-none flex-col overflow-hidden bg-slate-950"
-      onPointerDown={handlePointerDown}
-    >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(88,28,135,0.35),_transparent_55%)]" />
+    <div className="relative flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden bg-slate-950 text-white">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(59,130,246,0.22),_transparent_52%)]" />
 
-      {ripples.map((ripple) => (
-        <div
-          key={ripple.id}
-          className="pointer-events-none absolute z-0 h-5 w-5 rounded-full border-2 border-pink-400/60 bg-pink-500/10 animate-ripple"
-          style={{ left: ripple.x, top: ripple.y }}
-        />
-      ))}
-
-      <header className="relative z-20 flex shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/75 px-4 py-3 backdrop-blur-xl md:px-6">
-        <div className="flex min-w-0 items-center gap-3">
-          <div className="rounded-full bg-gradient-to-br from-pink-500 to-purple-600 p-2 shadow-lg shadow-pink-500/20">
-            <Music className="text-white" size={20} />
+      <header className="relative z-10 flex shrink-0 items-center justify-between border-b border-white/10 bg-slate-950/80 px-4 py-3 backdrop-blur-xl md:px-6">
+        <div className="flex items-center gap-3">
+          <div className="rounded-xl bg-blue-500/15 p-2 text-blue-300">
+            <Gamepad2 size={22} />
           </div>
-          <div className="min-w-0">
-            <h1 className="truncate text-lg font-bold tracking-wide text-white">離開我的依賴</h1>
-            <p className="text-xs text-slate-400">Tap Mode · Auto Mode</p>
+          <div>
+            <h1 className="text-lg font-black tracking-wide">Keyboard Music Game</h1>
+            <p className="text-xs text-slate-400">A S D F G H J K · Play by keyboard or tap</p>
           </div>
         </div>
-        <div className="text-right font-mono text-sm text-slate-400">
-          <span className="font-bold text-pink-400">{Math.min(currentIndex, FLAT_NOTES.length)}</span>
-          <span> / {FLAT_NOTES.length}</span>
+
+        <div className="hidden text-right text-xs text-slate-400 sm:block">
+          <div>HTML / Web Audio</div>
+          <div className="font-mono text-blue-300">8-note keyboard</div>
         </div>
       </header>
 
-      <div className="relative z-10 h-1 shrink-0 bg-slate-800">
-        <div
-          className="h-full bg-gradient-to-r from-pink-500 to-purple-500 transition-[width] duration-200"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
-
-      <main className="pointer-events-none relative z-10 flex min-h-0 flex-1 flex-col items-center justify-center gap-5 px-4 py-5">
-        {isFinished ? (
-          <div className="pointer-events-auto space-y-5 text-center" onPointerDown={(event) => event.stopPropagation()}>
-            <h2 className="text-4xl font-black text-green-400 drop-shadow-[0_0_18px_rgba(74,222,128,0.35)]">完成！</h2>
-            <p className="text-slate-400">共完成 {FLAT_NOTES.length} 個音符</p>
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col px-4 py-4 md:px-6">
+        <section className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3">
+          <div className="flex rounded-xl border border-white/10 bg-slate-900/80 p-1">
             <button
               type="button"
-              onClick={toggleAutoPlay}
-              className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-pink-600 to-purple-600 px-7 py-3 font-bold text-white shadow-xl shadow-pink-600/20 transition active:scale-95"
+              onClick={() => switchMode('free')}
+              className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                mode === 'free' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:text-white'
+              }`}
             >
-              <Play size={20} fill="currentColor" />
-              從頭播放
+              Free Play
+            </button>
+            <button
+              type="button"
+              onClick={() => switchMode('challenge')}
+              className={`rounded-lg px-4 py-2 text-sm font-bold transition ${
+                mode === 'challenge' ? 'bg-blue-500 text-white' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Challenge
             </button>
           </div>
-        ) : (
-          <>
-            <div
-              key={currentIndex}
-              className={`text-[7.5rem] font-black leading-none text-transparent bg-clip-text bg-gradient-to-b from-white to-pink-200 drop-shadow-[0_0_30px_rgba(236,72,153,0.45)] transition-transform duration-100 md:text-[10rem] ${isPulsing ? 'scale-110' : 'scale-100'}`}
-            >
-              {currentNote.lyric}
+
+          <label className="flex min-w-52 items-center gap-3 rounded-xl border border-white/10 bg-slate-900/80 px-4 py-2 text-sm">
+            <Volume2 size={17} className="text-blue-300" />
+            <span className="w-10 font-mono">{Math.round(volume * 100)}%</span>
+            <input
+              className="min-w-24 flex-1 accent-blue-500"
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={volume}
+              onChange={(event) => setVolume(Number(event.target.value))}
+              aria-label="Master volume"
+            />
+          </label>
+        </section>
+
+        <section className="mx-auto mt-4 flex min-h-0 w-full max-w-5xl flex-1 flex-col justify-center">
+          {mode === 'free' ? (
+            <div className="mb-5 text-center">
+              <div className="text-4xl font-black md:text-6xl">Free Play</div>
+              <p className="mt-2 text-sm text-slate-400">Press A–K or tap the piano keys below.</p>
             </div>
-            <div className="text-center">
-              <div className="font-mono text-4xl font-bold tracking-wider text-pink-400">{currentNote.notation}</div>
-              <div className="mt-2 text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">
-                {isAutoPlaying ? 'Auto Playing' : 'Tap Anywhere'}
+          ) : isComplete ? (
+            <div className="mb-5 text-center">
+              <div className="text-4xl font-black text-emerald-300 md:text-6xl">Challenge Clear</div>
+              <p className="mt-3 text-slate-300">
+                Score <span className="font-mono font-bold text-white">{score}</span>
+                {' · '}
+                Accuracy <span className="font-mono font-bold text-white">{accuracy}%</span>
+              </p>
+              <button
+                type="button"
+                onClick={resetChallenge}
+                className="mt-4 inline-flex items-center gap-2 rounded-xl bg-blue-500 px-5 py-3 font-bold text-white transition active:scale-95"
+              >
+                <RotateCcw size={18} />
+                Play Again
+              </button>
+            </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-3 gap-3 md:grid-cols-4">
+                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                  <div className="text-xs uppercase tracking-widest text-slate-500">Target</div>
+                  <div className="mt-1 text-4xl font-black text-blue-300">{currentTarget?.key}</div>
+                  <div className="text-sm text-slate-400">{currentTarget?.notation}</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                  <div className="text-xs uppercase tracking-widest text-slate-500">Score</div>
+                  <div className="mt-1 font-mono text-3xl font-black">{score}</div>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-slate-900/80 p-4">
+                  <div className="text-xs uppercase tracking-widest text-slate-500">Combo</div>
+                  <div className="mt-1 font-mono text-3xl font-black">{combo}</div>
+                </div>
+                <div className="hidden rounded-2xl border border-white/10 bg-slate-900/80 p-4 md:block">
+                  <div className="text-xs uppercase tracking-widest text-slate-500">Accuracy</div>
+                  <div className="mt-1 font-mono text-3xl font-black">{accuracy}%</div>
+                </div>
               </div>
-            </div>
-          </>
-        )}
 
-        <section
-          className="pointer-events-auto mt-1 w-full max-w-md rounded-2xl border border-white/10 bg-slate-900/80 p-3 shadow-2xl backdrop-blur-xl"
-          onPointerDown={(event) => event.stopPropagation()}
-          aria-label="播放控制"
-        >
-          <div className="flex items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={resetSong}
-              className="rounded-full border border-slate-700 bg-slate-800 p-3 text-slate-300 transition hover:text-white active:scale-95"
-              aria-label="重新開始"
-            >
-              <RotateCcw size={20} />
-            </button>
-            <button
-              type="button"
-              onClick={toggleAutoPlay}
-              className="flex min-w-36 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-pink-600 to-purple-600 px-6 py-3 font-bold text-white shadow-lg shadow-pink-600/20 transition active:scale-95"
-            >
-              {isAutoPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
-              {isAutoPlaying ? '暫停' : '自動播放'}
-            </button>
-            <button
-              type="button"
-              onClick={stepBack}
-              className="rounded-full border border-slate-700 bg-slate-800 px-4 py-3 font-mono text-sm font-bold text-slate-300 transition hover:text-white active:scale-95"
-              aria-label="上一個音符"
-            >
-              −1
-            </button>
+              <div className="mt-4 flex min-h-16 items-center justify-center gap-2 overflow-hidden rounded-2xl border border-white/10 bg-slate-900/60 px-3">
+                {nextPreview.map((note, index) => (
+                  <div
+                    key={`${currentIndex}-${index}-${note.key}`}
+                    className={`flex h-12 min-w-12 items-center justify-center rounded-xl border font-mono text-lg font-black transition ${
+                      index === 0
+                        ? 'border-blue-300 bg-blue-500 text-white'
+                        : 'border-slate-700 bg-slate-800 text-slate-400'
+                    }`}
+                  >
+                    {note.key}
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-800">
+                <div
+                  className="h-full bg-blue-500 transition-[width] duration-200"
+                  style={{ width: `${(currentIndex / sequence.length) * 100}%` }}
+                />
+              </div>
+            </>
+          )}
+
+          <div className="mt-6 grid grid-cols-4 gap-2 md:grid-cols-8 md:gap-3" aria-label="Virtual music keyboard">
+            {KEYBOARD_NOTES.map((note) => {
+              const isActive = activeKey === note.key;
+              const isTarget = mode === 'challenge' && !isComplete && currentTarget?.key === note.key;
+
+              return (
+                <button
+                  key={note.key}
+                  type="button"
+                  onPointerDown={(event) => {
+                    event.preventDefault();
+                    playNote(note);
+                  }}
+                  className={`group flex min-h-32 flex-col items-center justify-between rounded-2xl border px-2 py-4 transition active:scale-[0.98] md:min-h-48 ${
+                    isActive
+                      ? 'border-blue-200 bg-blue-400 text-slate-950'
+                      : isTarget
+                        ? 'border-blue-400 bg-blue-500/15 text-white'
+                        : 'border-white/10 bg-gradient-to-b from-slate-100 to-slate-300 text-slate-950 hover:from-white hover:to-slate-200'
+                  }`}
+                  aria-label={`${note.key} key, ${note.label}, ${note.notation}`}
+                >
+                  <span
+                    className={`flex h-11 w-11 items-center justify-center rounded-xl font-mono text-xl font-black ${
+                      isActive ? 'bg-slate-950 text-white' : 'bg-slate-900 text-white'
+                    }`}
+                  >
+                    {note.key}
+                  </span>
+                  <div className="text-center">
+                    <div className="font-bold">{note.label}</div>
+                    <div className={`font-mono text-xs ${isActive ? 'text-slate-800' : 'text-slate-500'}`}>
+                      {note.notation}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="mt-3 grid grid-cols-2 gap-4 border-t border-white/10 pt-3">
-            <label className="flex items-center gap-2 text-xs text-slate-400">
-              <Gauge size={16} className="shrink-0 text-pink-400" />
-              <span className="w-12 font-mono text-white">{bpm} BPM</span>
-              <input
-                className="min-w-0 flex-1 accent-pink-500"
-                type="range"
-                min={MIN_BPM}
-                max={MAX_BPM}
-                value={bpm}
-                onChange={(event) => {
-                  stopPlayback();
-                  setBpm(Number(event.target.value));
-                }}
-                aria-label="速度"
-              />
-            </label>
-            <label className="flex items-center gap-2 text-xs text-slate-400">
-              <Volume2 size={16} className="shrink-0 text-pink-400" />
-              <span className="w-8 font-mono text-white">{Math.round(volume * 100)}%</span>
-              <input
-                className="min-w-0 flex-1 accent-pink-500"
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={volume}
-                onChange={(event) => setVolume(Number(event.target.value))}
-                aria-label="音量"
-              />
-            </label>
+          <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
+            <span>Tip: Use both hands across A–K.</span>
+            {mode === 'challenge' && (
+              <button
+                type="button"
+                onClick={resetChallenge}
+                className="inline-flex items-center gap-1 rounded-lg border border-white/10 bg-slate-900/80 px-3 py-2 font-semibold text-slate-300 hover:text-white"
+              >
+                <RotateCcw size={14} />
+                New Pattern
+              </button>
+            )}
           </div>
         </section>
       </main>
-
-      <section
-        ref={scrollRef}
-        className="pointer-events-auto relative z-20 h-[28%] shrink-0 overflow-y-auto border-t border-white/10 bg-slate-950/55 px-4 py-5 backdrop-blur-xl"
-        onPointerDown={(event) => event.stopPropagation()}
-        aria-label="歌詞與簡譜進度"
-      >
-        <div className="mx-auto max-w-lg space-y-7 pb-10">
-          {SONG_DATA.map((line) => {
-            const isActiveLine = line.id === activeLineId;
-            const previousNotesCount = SONG_DATA.slice(0, SONG_DATA.findIndex((item) => item.id === line.id)).reduce(
-              (total, item) => total + item.notes.length,
-              0,
-            );
-
-            return (
-              <div
-                id={`lyric-line-${line.id}`}
-                key={line.id}
-                className={`transition-all duration-500 ${isActiveLine ? 'opacity-100' : 'opacity-30'}`}
-              >
-                <div className="flex flex-wrap justify-center gap-2 md:gap-3">
-                  {line.notes.map((note, index) => {
-                    const globalIndex = previousNotesCount + index;
-                    const isPlayed = globalIndex < currentIndex;
-                    const isCurrent = globalIndex === currentIndex;
-
-                    return (
-                      <div
-                        key={`${line.id}-${index}`}
-                        className={`flex flex-col items-center gap-1 transition-all duration-300 ${isCurrent ? '-translate-y-1 scale-110' : ''}`}
-                      >
-                        <span className={`font-mono text-xs font-bold ${isPlayed ? 'text-pink-500' : isCurrent ? 'text-pink-300' : 'text-slate-600'}`}>
-                          {note.notation}
-                        </span>
-                        <span
-                          className={`flex h-9 min-w-9 items-center justify-center rounded-lg border px-1 text-lg font-bold transition-all duration-200 md:h-10 md:min-w-10 md:text-xl ${
-                            isPlayed
-                              ? 'border-pink-500 bg-pink-600 text-white shadow-[0_0_10px_rgba(236,72,153,0.3)]'
-                              : isCurrent
-                                ? 'border-white bg-white text-pink-600 shadow-[0_0_15px_rgba(255,255,255,0.4)]'
-                                : 'border-slate-700 bg-slate-800 text-slate-500'
-                          }`}
-                        >
-                          {note.lyric}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
     </div>
   );
 }
