@@ -1,11 +1,14 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Gamepad2, RotateCcw, Volume2 } from 'lucide-react';
-import { CHALLENGE_LENGTH, createChallenge, createLevelOneChallenge, DEFAULT_VOLUME, HIGH_ROW_KEYS, KEYBOARD_NOTES, LOW_ROW_KEYS } from './constants';
+import { CHALLENGE_LENGTH, createChallenge, createLevelOneChallenge, DEFAULT_VOLUME, HIGH_ROW_KEYS, KEYBOARD_NOTES, LOW_ROW_KEYS, MID_ROW_KEYS } from './constants';
 import { audioService } from './services/audioService';
 import { ChallengeType, GameMode, KeyboardNote } from './types';
 
 const keyMap = new Map(KEYBOARD_NOTES.map((note) => [note.key, note]));
 const lowRowNotes = LOW_ROW_KEYS.map((key) => keyMap.get(key)).filter(
+  (note): note is KeyboardNote => Boolean(note),
+);
+const midRowNotes = MID_ROW_KEYS.map((key) => keyMap.get(key)).filter(
   (note): note is KeyboardNote => Boolean(note),
 );
 const highRowNotes = HIGH_ROW_KEYS.map((key) => keyMap.get(key)).filter(
@@ -15,6 +18,8 @@ const highRowNotes = HIGH_ROW_KEYS.map((key) => keyMap.get(key)).filter(
 export default function App() {
   const [mode, setMode] = useState<GameMode>('free');
   const [volume, setVolume] = useState(DEFAULT_VOLUME);
+  const [isVolumeOpen, setIsVolumeOpen] = useState(false);
+  const volumePopoverRef = useRef<HTMLDivElement | null>(null);
   const [activeKeys, setActiveKeys] = useState<Set<string>>(() => new Set());
   const [challengeType, setChallengeType] = useState<ChallengeType>('level1');
   const [sequence, setSequence] = useState<KeyboardNote[]>(() => createLevelOneChallenge());
@@ -37,6 +42,20 @@ export default function App() {
     audioService.setMasterVolume(volume);
     return () => audioService.stopAll();
   }, [volume]);
+
+  useEffect(() => {
+    if (!isVolumeOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      const target = event.target as Node | null;
+      if (target && !volumePopoverRef.current?.contains(target)) {
+        setIsVolumeOpen(false);
+      }
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    return () => window.removeEventListener('pointerdown', handlePointerDown);
+  }, [isVolumeOpen]);
 
   const pressNote = useCallback(
     (note: KeyboardNote) => {
@@ -155,18 +174,18 @@ export default function App() {
           </div>
           <div>
             <h1 className="text-lg font-black tracking-wide">Keyboard Music Game</h1>
-            <p className="text-xs text-slate-400">Z–M = C4–B4 · A–K = C5–C6</p>
+            <p className="text-xs text-slate-400">Low C3–C4 · Mid C4–C5 · High C5–C6</p>
           </div>
         </div>
 
         <div className="hidden text-right text-xs text-slate-400 sm:block">
           <div>HTML / Web Audio</div>
-          <div className="font-mono text-blue-300">15-note · C4–C6</div>
+          <div className="font-mono text-blue-300">3 octaves · C3–C6</div>
         </div>
       </header>
 
-      <main className="relative z-10 flex min-h-0 flex-1 flex-col px-4 py-4 md:px-6">
-        <section className="mx-auto flex w-full max-w-5xl flex-wrap items-center justify-between gap-3">
+      <main className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 md:px-6">
+        <section className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
           <div className="flex rounded-xl border border-white/10 bg-slate-900/80 p-1">
             <button
               type="button"
@@ -188,20 +207,37 @@ export default function App() {
             </button>
           </div>
 
-          <label className="flex min-w-52 items-center gap-3 rounded-xl border border-white/10 bg-slate-900/80 px-4 py-2 text-sm">
-            <Volume2 size={17} className="text-blue-300" />
-            <span className="w-10 font-mono">{Math.round(volume * 100)}%</span>
-            <input
-              className="min-w-24 flex-1 accent-blue-500"
-              type="range"
-              min="0"
-              max="1"
-              step="0.05"
-              value={volume}
-              onChange={(event) => setVolume(Number(event.target.value))}
-              aria-label="Master volume"
-            />
-          </label>
+          <div ref={volumePopoverRef} className="relative shrink-0">
+            <button
+              type="button"
+              onClick={() => setIsVolumeOpen((open) => !open)}
+              className="flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-slate-900/80 text-blue-300 transition hover:text-white active:scale-95"
+              aria-label="Adjust volume"
+              aria-expanded={isVolumeOpen}
+              aria-haspopup="dialog"
+            >
+              <Volume2 size={20} />
+            </button>
+
+            {isVolumeOpen && (
+              <div className="absolute right-0 top-full z-50 mt-2 w-64 rounded-2xl border border-white/10 bg-slate-900/95 p-4 shadow-2xl backdrop-blur-xl">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm font-bold text-slate-200">Volume</span>
+                  <span className="font-mono text-sm text-blue-300">{Math.round(volume * 100)}%</span>
+                </div>
+                <input
+                  className="w-full accent-blue-500"
+                  type="range"
+                  min="0"
+                  max="1"
+                  step="0.05"
+                  value={volume}
+                  onChange={(event) => setVolume(Number(event.target.value))}
+                  aria-label="Master volume"
+                />
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="mx-auto mt-4 flex min-h-0 w-full max-w-5xl flex-1 flex-col justify-center">
@@ -235,7 +271,7 @@ export default function App() {
           {mode === 'free' ? (
             <div className="mb-5 text-center">
               <div className="text-4xl font-black md:text-6xl">Free Play</div>
-              <p className="mt-2 text-sm text-slate-400">Hold multiple keys together to play chords · Z–M lower · A–K upper.</p>
+              <p className="mt-2 text-sm text-slate-400">Three octaves · hold multiple keys together to play chords.</p>
             </div>
           ) : isComplete ? (
             <div className="mb-5 text-center">
@@ -300,20 +336,17 @@ export default function App() {
             </>
           )}
 
-          <div className="mt-6 space-y-2" aria-label="Virtual music keyboard">
+          <div className="mt-4 space-y-2" aria-label="Virtual music keyboard">
             {[
               { label: 'High · C5–C6', notes: highRowNotes },
-              { label: 'Low · C4–B4', notes: lowRowNotes },
+              { label: 'Mid · C4–C5', notes: midRowNotes },
+              { label: 'Low · C3–C4', notes: lowRowNotes },
             ].map((row) => (
               <div key={row.label}>
                 <div className="mb-1 text-center text-[10px] font-bold uppercase tracking-[0.22em] text-slate-500">
                   {row.label}
                 </div>
-                <div
-                  className={`grid gap-2 ${
-                    row.notes.length === 8 ? 'grid-cols-4 md:grid-cols-8' : 'grid-cols-4 md:grid-cols-7'
-                  }`}
-                >
+                <div className="grid grid-cols-8 gap-1 md:gap-2">
                   {row.notes.map((note) => {
                     const isActive = activeKeys.has(note.key);
                     const isTarget =
@@ -334,7 +367,7 @@ export default function App() {
                         }}
                         onPointerCancel={() => releaseNote(note.key)}
                         onLostPointerCapture={() => releaseNote(note.key)}
-                        className={`group flex min-h-24 flex-col items-center justify-between rounded-2xl border px-2 py-3 transition active:scale-[0.98] md:min-h-32 ${
+                        className={`group flex min-h-20 flex-col items-center justify-between rounded-xl border px-0.5 py-2 transition active:scale-[0.98] md:min-h-28 md:rounded-2xl md:px-2 md:py-3 ${
                           isActive
                             ? 'border-blue-200 bg-blue-400 text-slate-950'
                             : isTarget
@@ -344,16 +377,16 @@ export default function App() {
                         aria-label={`${note.key} key, ${note.label}, ${note.notation}`}
                       >
                         <span
-                          className={`flex h-9 w-9 items-center justify-center rounded-lg font-mono text-lg font-black ${
+                          className={`flex h-8 w-8 items-center justify-center rounded-lg font-mono text-sm font-black md:h-10 md:w-10 md:text-lg ${
                             isActive ? 'bg-slate-950 text-white' : 'bg-slate-900 text-white'
                           }`}
                         >
-                          {note.key}
+                          {note.key === ',' ? ',' : note.key}
                         </span>
-                        <div className="text-center">
-                          <div className="text-sm font-bold">{note.label}</div>
+                        <div className="text-center leading-tight">
+                          <div className="text-[11px] font-bold md:text-sm">{note.label}</div>
                           <div
-                            className={`font-mono text-[11px] ${
+                            className={`font-mono text-[9px] md:text-[11px] ${
                               isActive ? 'text-slate-800' : 'text-slate-500'
                             }`}
                           >
@@ -369,7 +402,7 @@ export default function App() {
           </div>
 
           <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
-            <span>Tip: Hold several keys at once for polyphonic chords.</span>
+            <span>Keys: Q–I high · A–K mid · Z–, low.</span>
             {mode === 'challenge' && (
               <button
                 type="button"
