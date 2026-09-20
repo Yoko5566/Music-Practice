@@ -12,10 +12,21 @@ export const KEYBOARD_NOTES: KeyboardNote[] = [
 ];
 
 export const CHALLENGE_LENGTH = 16;
+export const LEVEL_ONE_KEYS = 'ASDFGHGHJKKKKJHGGGGHAAAHHHGAAAASDFDSADSASA';
 export const DEFAULT_VOLUME = 0.5;
 
 export const createChallenge = (length = CHALLENGE_LENGTH): KeyboardNote[] =>
   Array.from({ length }, () => {
     const index = Math.floor(Math.random() * KEYBOARD_NOTES.length);
     return KEYBOARD_NOTES[index];
+  });
+
+
+export const createLevelOneChallenge = (): KeyboardNote[] =>
+  LEVEL_ONE_KEYS.split('').map((key) => {
+    const note = KEYBOARD_NOTES.find((item) => item.key === key);
+    if (!note) {
+      throw new Error(`Unsupported Level 1 key: ${key}`);
+    }
+    return note;
   });
